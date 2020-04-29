@@ -1,0 +1,70 @@
+---
+title: "Web Scrap & Data Processing (Leafly)"
+author: "Kimberly Nielsen"
+date: "1/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, echo=FALSE} ## Load packages:
+library(rvest)
+library(stringr)
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(knitr)
+```
+```{r}
+Strains <- list()
+strain_data <- data.frame()
+for(i in 20:1){ 
+  Strains[[i]] <- read_html(paste0("https://www.leafly.com/strains?page=", i))
+  
+  r_names <- Strains[[i]] %>% html_nodes(".strain-tile__name") %>% html_text()
+  r_hrefs <- Strains[[i]] %>% html_nodes("a.strain-tile") %>% html_attr("href")
+
+  temp_df <- cbind.data.frame("Names"=r_names, "Next Link"=r_hrefs) #"Top Qualities"=r_top_qualities, 
+  strain_data <- bind_rows(temp_df, strain_data) %>% na_if("character(0)")
+}
+
+page_2_urls <- paste0("https://www.leafly.com", strain_data$`Next Link`) #SECOND WINDOW urls.
+page_3_urls <- paste0(page_2_urls, "/info")
+
+for(i in page_2_urls){Strains_2[[i]] <- read_html(i)}
+
+Strains_2 <- list()
+strain_2_data <- data.frame()
+TEST_2 <- list()
+for(i in 1:600){
+  TEST_2[[i]] <- Strains_2[[i]] %>% html_nodes(".mb-md") %>% na_if("character(0)") #Specifically for XXX. All info (including rating) #NECESSARY?????
+  r.strain_type <- TEST_2[[i]] %>% html_nodes("h2.text-xs") %>% html_text() %>% na_if("character(0)") #"Indica"
+  
+  r.THC <- Strains_2[[i]] %>% html_node(".my-md") %>% html_text() %>% na_if("character(0)")#"Cannabinoids18.5%"
+###  r.reviews_effects <- Strains_2[[i]] %>% html_node(".pt-xxl") %>% html_node(".text-xs") %>% html_text() %>% na_if("character(0)") #"457 people reported 3616 effectsThis info is..." Only need first number.
+  r.feelings <- Strains_2[[i]] %>% html_node(".react-tabs__tab-panel") %>% html_text() %>% na_if("character(0)") #All feelings and their percentages.
+  r.rating <- Strains_2[[i]] %>% html_node("div.self-end") %>% html_text() #Overall and # of reviewers
+  r.terpenes <- Strains_2[[i]] %>% html_node(".mt-xs") %>% html_text() %>%
+                sapply(., function(i) gsub("Herbal","Myercene.",gsub("Pine","Pinene.",gsub("Peppery", "Caryophyllene.", gsub("Citrus","Limonene.",gsub("Fruity", "Terpinolene.",gsub("Hoppy","Humulene.",gsub("Floral","Linalool." ,gsub("Minty","Ocimene.", i)))))))))
+
+  strain_2_data <- bind_rows()
+###  temp_df <- #FIX!!!!!!!!!! 
+  strain_2_data <- bind_rows(strain_2_data, temp_df)
+}
+
+strain_2_data <- strain_2_data %>% 
+  separate(`Overall Rating`, into=c("Rating (out of 5)", "Overall Reviewers"), extra="drop", convert=TRUE, " ") %>% #`Overall Rating`
+  separate(`'Effects' Reviews`, c("Effects Reviewers", "# of Reported Effects"), extra = "drop", convert = TRUE, 'reported') %>%
+  separate(`% THC`, c("% THC", "% CBD"), extra = "drop", convert = TRUE, '%') %>% 
+  separate(`Feelings`, c("Feeling #1", "Feeling #2", "Feeling #3", "Feeling #4", "Feeling #5"), extra = "drop", convert = TRUE, '%') %>%
+  separate(`# of Reported Effects`, c("DIE", "# of Reported Effects"), extra = "drop", convert = TRUE, ' ') %>%
+  separate(`Terpenes`, c("feeling 1", "feeling 2", "feeling 3", "feeling 4"), convert=TRUE, extra="merge", ".")
+  
+  
+strain_2_data <- sapply(strain_2_data[,-7], function(x) gsub("Cannabinoids", "", gsub("people", "", x))) %>% data.frame(.) %>% unfactor(.)
+strain_2_data$X..CBD <- strain_2_data$X..CBD %>% replace_na(0)
+strain_2_data$X..THC <- strain_2_data$X..THC %>% gsub("\\Calming", NA, .) %>% as.numeric(.)
+strain_2_data$Total_Cannabinoids <- strain_2_data$X..THC + strain_2_data_TEST$X..CBD
+strain_2_data$'Terpenes' <-  strain_2_data$'Terpenes' %>% sapply(., function(i) gsub("This", NA, gsub("is", NA, gsub("info", NA, i)))) %>% data.frame(.)
+  
+FINAL_strain_data <- cbind.data.frame(strain_data[,1], strain_2_data)
+write.csv(Leafly_1, "/Users/kimberlynielsen/Desktop/R Scripts\\leafly_data_1.csv") #update
+ ```
